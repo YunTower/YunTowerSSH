@@ -2,8 +2,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import LoginForm from '@/components/LoginForm.vue'
+import LoginForm from './components/LoginForm.vue'
 import { handleError } from '@/utils/errorHandler'
+import { login } from '@/api/auth'
 
 const router = useRouter()
 const message = useMessage()
@@ -13,9 +14,11 @@ const loading = ref(false)
 const handleLogin = async (data: { username: string; password: string }) => {
   try {
     loading.value = true
-    // TODO: 调用登录API
-    message.success('登录成功')
-    router.push('/')
+    const success = await login(data.username, data.password)
+    if (success) {
+      message.success('登录成功')
+      router.push('/')
+    }
   } catch (error) {
     handleError(error, '登录失败')
   } finally {

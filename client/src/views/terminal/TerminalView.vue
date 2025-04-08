@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { handleError } from '@/utils/errorHandler'
-import { ServerStatus } from '@/types/server'
 
 const route = useRoute()
 const router = useRouter()

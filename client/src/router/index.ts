@@ -9,19 +9,19 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/login',
     name: 'login',
-    component: () => import('@/views/Login.vue'),
+    component: () => import('@/views/login/LoginView.vue'),
     meta: { requiresAuth: false }
   },
   {
     path: '/servers',
     name: 'servers',
-    component: () => import('@/views/Servers.vue'),
+    component: () => import('@/views/server/ServerView.vue'),
     meta: { requiresAuth: true }
   },
   {
     path: '/terminal/:serverId',
     name: 'terminal',
-    component: () => import('@/views/Terminal.vue'),
+    component: () => import('@/views/terminal/TerminalView.vue'),
     meta: { requiresAuth: true }
   }
 ]
@@ -56,4 +56,4 @@ router.beforeEach(async (
   next()
 })
 
-export default router 
+export default router

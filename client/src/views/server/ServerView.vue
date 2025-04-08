@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { useMessage, NInput, NIcon, NButton, NAvatar, NTag, NTabs, NTabPane } from 'naive-ui'
+import { useMessage, NInput, NIcon, NButton, NTabs, NTabPane } from 'naive-ui'
 import { useAuthStore } from '@/stores/auth'
 import { handleError } from '@/utils/errorHandler'
-import { Search, Add, Person, LogOutOutline } from '@vicons/ionicons5'
-import ServerCard from '@/components/ServerCard.vue'
-import ServerStatus from '@/components/ServerStatus.vue'
-import { Server, ConnectedServer, ServerWithStatus } from '@/types/server'
-import { Group, GroupWithServers } from '@/types/group'
+import { Search, Add } from '@vicons/ionicons5'
+import ServerStatus from './components/ServerStatus.vue'
+import { Server, ConnectedServer } from '@/types/server'
+import { Group } from '@/types/group'
+import { fetchServers, connectToServer } from '@/api/server'
 
 const router = useRouter()
 const message = useMessage()
@@ -61,57 +61,15 @@ const ungroupedServers = computed(() => {
   }))
 })
 
-const fetchServers = async () => {
+const loadServers = async () => {
   try {
     loading.value = true
-    const response = await fetch('/api/servers', {
-      headers: {
-        'Authorization': `Bearer ${authStore.token}`
-      }
-    })
-
-    if (!response.ok) {
-      throw new Error('获取服务器列表失败')
-    }
-
-    servers.value = await response.json()
+    servers.value = await fetchServers()
   } catch (error) {
     handleError(error, '获取服务器列表失败')
   } finally {
     loading.value = false
   }
-}
-
-const connectToServer = (serverId: number) => {
-  // 查找要连接的服务器
-  const server = servers.value.find(s => s.id === serverId)
-  if (!server) return
-  
-  // 检查服务器是否已经连接
-  const existingConnection = connectedServers.value.find(s => s.id === serverId)
-  if (existingConnection) {
-    // 如果已连接，只切换到该标签
-    activeTab.value = existingConnection.tabKey
-    return
-  }
-  
-  // 添加到已连接服务器列表
-  const tabKey = `server-${serverId}-${Date.now()}`
-  connectedServers.value.push({
-    ...server,
-    status: 'connected',
-    tabKey
-  })
-  
-  // 激活新标签
-  activeTab.value = tabKey
-  
-  // 实际连接逻辑可以在这里添加
-  // 例如：router.push(`/terminal/${serverId}`)
-}
-
-const selectGroup = (groupId: number | null) => {
-  activeGroup.value = groupId
 }
 
 const closeTab = (tabKey: string) => {
@@ -133,7 +91,7 @@ const logout = () => {
 }
 
 onMounted(() => {
-  fetchServers()
+  loadServers()
 })
 </script>
 
@@ -155,7 +113,7 @@ onMounted(() => {
               <n-icon><Search /></n-icon>
             </template>
           </n-input>
-          <n-button type="primary" @click="fetchServers" :loading="loading">
+          <n-button type="primary" @click="loadServers" :loading="loading">
             <template #icon>
               <n-icon><Add /></n-icon>
             </template>

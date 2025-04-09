@@ -1,0 +1,592 @@
+# CursorRules for SSH Tool Client Development
+
+## 1. Project Setup and Configuration
+
+### 1.1 Initialization
+```bash
+# Create project structure
+mkdir ssh-client
+cd ssh-client
+npm init -y
+
+# Initialize Tauri
+npm install --save-dev @tauri-apps/cli
+npm run tauri init
+
+# Setup client
+mkdir client
+cd client
+npm init vue@latest
+# Select Vue, TypeScript, Pinia, ESLint, Prettier
+```
+
+### 1.2 Required Dependencies
+```bash
+# Client dependencies
+cd client
+npm install naive-ui tailwindcss postcss autoprefixer xterm @xterm/addon-fit @xterm/addon-web-links @xterm/addon-search
+npm install --save-dev @types/xterm
+
+# Server dependencies
+cd ../server
+npm install express sqlite3 ws ssh2 crypto-js jsonwebtoken bcryptjs cors dotenv
+npm install --save-dev @types/express @types/ws @types/ssh2 @types/bcryptjs ts-node typescript
+```
+
+## 2. Code Generation Rules
+
+### 2.1 Component Creation
+```bash
+# Generate new component with consistent structure
+# Usage: npm run gen:component ComponentName
+# Add to package.json scripts:
+"gen:component": "sh ./scripts/generate_component.sh"
+```
+
+`generate_component.sh`:
+```bash
+#!/bin/bash
+COMPONENT_NAME=$1
+COMPONENT_PATH="client/src/components/${COMPONENT_NAME}"
+
+mkdir -p $COMPONENT_PATH
+cat > "${COMPONENT_PATH}/${COMPONENT_NAME}.vue" <<EOF
+<script setup lang="ts">
+// Component logic here
+</script>
+
+<template>
+  <div class="${COMPONENT_NAME.toLowerCase()}">
+    <!-- Component markup -->
+  </div>
+</template>
+
+<style scoped>
+.${COMPONENT_NAME.toLowerCase()} {
+  /* Component styles */
+}
+</style>
+EOF
+
+echo "Component ${COMPONENT_NAME} created at ${COMPONENT_PATH}"
+```
+
+### 2.2 Store Creation
+```bash
+# Generate new Pinia store
+# Usage: npm run gen:store storeName
+```
+
+`generate_store.sh`:
+```bash
+#!/bin/bash
+STORE_NAME=$1
+STORE_PATH="client/src/stores/${STORE_NAME}.ts"
+
+cat > $STORE_PATH <<EOF
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const use${STORE_NAME}Store = defineStore('${STORE_NAME.toLowerCase()}', () => {
+  // State
+  const data = ref<any>(null)
+  
+  // Getters
+  const isEmpty = computed(() => !data.value)
+  
+  // Actions
+  async function fetchData() {
+    // Implementation
+  }
+  
+  return { data, isEmpty, fetchData }
+})
+EOF
+
+echo "Store ${STORE_NAME} created at ${STORE_PATH}"
+```
+
+## 3. Coding Standards
+
+### 3.1 TypeScript Rules
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["client/src/*"]
+    }
+  },
+  "include": ["client/src/**/*", "server/src/**/*"],
+  "exclude": ["node_modules"]
+}
+```
+
+### 3.2 Vue Component Structure
+```markdown
+1. Script Section Order:
+   - Type imports
+   - Component imports
+   - Type definitions
+   - Pinia stores
+   - Component props/emits
+   - Reactive state
+   - Computed properties
+   - Watchers
+   - Lifecycle hooks
+   - Methods
+   - Exposed values
+
+2. Template Section Rules:
+   - Use kebab-case for custom components
+   - Props should be kebab-case in templates
+   - Event handlers use @ prefix
+   - v-model for two-way binding
+   - Avoid v-if and v-for on same element
+
+3. Style Section Rules:
+   - Always scoped
+   - Use Tailwind where possible
+   - Custom styles only when necessary
+   - Mobile-first approach
+```
+
+### 3.3 API Endpoint Naming
+```typescript
+// Consistent RESTful endpoints
+const routes = {
+  auth: {
+    login: '/auth/login',
+    register: '/auth/register',
+    refresh: '/auth/refresh'
+  },
+  servers: {
+    base: '/servers',
+    byId: '/servers/:id',
+    test: '/servers/:id/test',
+    sync: '/servers/sync'
+  },
+  categories: {
+    base: '/categories',
+    byId: '/categories/:id'
+  }
+}
+```
+
+## 4. Security Protocols
+
+### 4.1 Data Encryption Standards
+```typescript
+// server/src/utils/crypto.ts
+import crypto from 'crypto'
+
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 16
+const TAG_LENGTH = 16
+const SALT_LENGTH = 64
+const ITERATIONS = 10000
+const DIGEST = 'sha512'
+
+export function encrypt(text: string, secret: string): string {
+  const salt = crypto.randomBytes(SALT_LENGTH)
+  const iv = crypto.randomBytes(IV_LENGTH)
+  const key = crypto.pbkdf2Sync(secret, salt, ITERATIONS, 32, DIGEST)
+  
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
+  let encrypted = cipher.update(text, 'utf8', 'hex')
+  encrypted += cipher.final('hex')
+  const tag = cipher.getAuthTag()
+  
+  return Buffer.concat([salt, iv, tag, Buffer.from(encrypted, 'hex')]).toString('base64')
+}
+
+export function decrypt(data: string, secret: string): string {
+  const buffer = Buffer.from(data, 'base64')
+  const salt = buffer.subarray(0, SALT_LENGTH)
+  const iv = buffer.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH)
+  const tag = buffer.subarray(SALT_LENGTH + IV_LENGTH, SALT_LENGTH + IV_LENGTH + TAG_LENGTH)
+  const encrypted = buffer.subarray(SALT_LENGTH + IV_LENGTH + TAG_LENGTH)
+  
+  const key = crypto.pbkdf2Sync(secret, salt, ITERATIONS, 32, DIGEST)
+  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv)
+  decipher.setAuthTag(tag)
+  
+  let decrypted = decipher.update(encrypted, undefined, 'utf8')
+  decrypted += decipher.final('utf8')
+  return decrypted
+}
+```
+
+### 4.2 Authentication Flow
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    Client->>Server: POST /auth/login {username, password}
+    Server->>Server: Verify credentials
+    Server->>Client: Return JWT token
+    Client->>Client: Store token securely
+    Client->>Server: Subsequent requests with Authorization header
+    Server->>Server: Verify token for each request
+    Server->>Client: Return requested data or error
+```
+
+## 5. Performance Guidelines
+
+### 5.1 WebSocket Optimization
+```typescript
+// server/src/services/SocketService.ts
+class SocketService {
+  private connections: Map<string, WebSocket> = new Map()
+  private pingInterval: NodeJS.Timeout
+  
+  constructor() {
+    this.pingInterval = setInterval(() => {
+      this.connections.forEach((ws, id) => {
+        if (ws.isAlive === false) return ws.terminate()
+        
+        ws.isAlive = false
+        ws.ping(null, false, true)
+      })
+    }, 30000)
+  }
+  
+  addConnection(id: string, ws: WebSocket) {
+    ws.isAlive = true
+    this.connections.set(id, ws)
+    
+    ws.on('pong', () => { ws.isAlive = true })
+    ws.on('close', () => this.connections.delete(id))
+  }
+  
+  cleanup() {
+    clearInterval(this.pingInterval)
+  }
+}
+```
+
+### 5.2 SSH Connection Pooling
+```typescript
+// server/src/services/SSHPool.ts
+import { Client } from 'ssh2'
+
+class SSHPool {
+  private pool: Map<string, Client> = new Map()
+  private maxConnections = 5
+  
+  async getConnection(serverId: string): Promise<Client> {
+    if (this.pool.has(serverId)) {
+      return this.pool.get(serverId)!
+    }
+    
+    if (this.pool.size >= this.maxConnections) {
+      throw new Error('Maximum connections reached')
+    }
+    
+    const server = await ServerModel.findById(serverId)
+    const conn = new Client()
+    
+    return new Promise((resolve, reject) => {
+      conn.on('ready', () => {
+        this.pool.set(serverId, conn)
+        resolve(conn)
+      }).on('error', (err) => {
+        reject(err)
+      }).connect({
+        host: server.host,
+        port: server.port,
+        username: server.username,
+        password: decrypt(server.password)
+      })
+    })
+  }
+  
+  releaseConnection(serverId: string) {
+    const conn = this.pool.get(serverId)
+    if (conn) {
+      conn.end()
+      this.pool.delete(serverId)
+    }
+  }
+}
+```
+
+## 6. Testing Standards
+
+### 6.1 Unit Test Structure
+```typescript
+// Example test file
+describe('SSHService', () => {
+  let sshService: SSHService
+  let mockConnection: jest.Mocked<Client>
+  
+  beforeEach(() => {
+    mockConnection = {
+      connect: jest.fn(),
+      on: jest.fn(),
+      end: jest.fn()
+    } as any
+    
+    sshService = new SSHService()
+  })
+  
+  it('should establish connection successfully', async () => {
+    const mockServer = {
+      id: '1',
+      host: 'test.com',
+      port: 22,
+      username: 'user',
+      password: encrypt('pass')
+    }
+    
+    jest.spyOn(ServerModel, 'findById').mockResolvedValue(mockServer)
+    jest.spyOn(ssh2, 'Client').mockImplementation(() => mockConnection)
+    
+    const ws = { send: jest.fn() } as any
+    await sshService.connect('1', ws)
+    
+    expect(mockConnection.connect).toHaveBeenCalledWith({
+      host: 'test.com',
+      port: 22,
+      username: 'user',
+      password: 'pass'
+    })
+  })
+})
+```
+
+### 6.2 E2E Test Cases
+```typescript
+describe('Server Management', () => {
+  beforeAll(async () => {
+    await page.goto('http://localhost:3000')
+    await login(page, 'testuser', 'password')
+  })
+  
+  it('should add new server', async () => {
+    await page.click('button:has-text("Add Server")')
+    await page.fill('#server-name', 'My Test Server')
+    await page.fill('#server-host', 'test.example.com')
+    await page.fill('#server-username', 'root')
+    await page.fill('#server-password', 'secret')
+    await page.click('button:has-text("Save")')
+    
+    await expect(page).toHaveText('table', 'My Test Server')
+  })
+  
+  it('should connect to server', async () => {
+    await page.click('tr:has-text("My Test Server")')
+    await page.waitForSelector('.xterm')
+    await page.type('.xterm', 'ls -la\n')
+    
+    await expect(page).toHaveText('.xterm', 'total')
+  })
+})
+```
+
+## 7. Documentation Rules
+
+### 7.1 Component Documentation
+```markdown
+## ServerList Component
+
+### Purpose
+Displays a list of servers with filtering and sorting capabilities.
+
+### Props
+| Name | Type | Default | Description |
+|------|------|---------|-------------|
+| servers | Server[] | [] | Array of server objects |
+| loading | boolean | false | Loading state |
+| selectedId | string | null | Currently selected server ID |
+
+### Events
+| Name | Payload | Description |
+|------|---------|-------------|
+| select | Server | Emitted when server is selected |
+| delete | string | Emitted with server ID to delete |
+
+### Usage Example
+```vue
+<ServerList 
+  :servers="servers" 
+  :loading="isLoading"
+  @select="handleSelect"
+  @delete="handleDelete"
+/>
+```
+
+### Implementation Notes
+- Uses virtual scrolling for performance with large lists
+- Debounces search input by 300ms
+- Persists sort preferences to localStorage
+```
+
+## 8. Error Handling Standards
+
+### 8.1 Client-Side Error Handling
+```typescript
+// client/src/utils/errorHandler.ts
+import { useMessage } from 'naive-ui'
+
+export function handleError(error: unknown, context = 'Operation') {
+  const message = useMessage()
+  
+  if (error instanceof Error) {
+    console.error(`${context} failed:`, error)
+    
+    if (error.message.includes('Network Error')) {
+      message.error('Network error - please check your connection')
+    } else if (error.message.includes('401')) {
+      message.error('Session expired - please login again')
+    } else {
+      message.error(`${context} failed: ${error.message}`)
+    }
+  } else {
+    console.error('Unknown error:', error)
+    message.error(`${context} failed unexpectedly`)
+  }
+}
+
+// Usage in components
+try {
+  await fetchData()
+} catch (error) {
+  handleError(error, 'Data loading')
+}
+```
+
+### 8.2 Server-Side Error Middleware
+```typescript
+// server/src/middlewares/errorHandler.ts
+import { Request, Response, NextFunction } from 'express'
+
+export function errorHandler(
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  console.error(`[${new Date().toISOString()}] Error:`, err.stack)
+  
+  const statusCode = res.statusCode !== 200 ? res.statusCode : 500
+  const response = {
+    message: err.message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  }
+  
+  res.status(statusCode).json(response)
+}
+
+// Usage in Express app
+app.use(errorHandler)
+```
+
+## 9. Git Workflow
+
+### 9.1 Branch Naming Convention
+```
+feature/  - New features (feature/ssh-connection)
+fix/      - Bug fixes (fix/server-list-scrolling)
+refactor/ - Code refactoring (refactor/auth-service)
+docs/     - Documentation changes (docs/api-reference)
+test/     - Test-related changes (test/e2e-coverage)
+chore/    - Maintenance tasks (chore/deps-update)
+```
+
+### 9.2 Commit Message Format
+```
+<type>(<scope>): <subject>
+<BLANK LINE>
+<body>
+<BLANK LINE>
+<footer>
+```
+
+Examples:
+```
+feat(ssh): add tabbed terminal interface
+
+Allow multiple SSH connections in separate tabs with quick switching. 
+Implemented using Tauri's window management API.
+
+Closes #123
+```
+
+```
+fix(ui): correct server list sorting
+
+Fixed an issue where server list sorting would reset after updates.
+Added local storage persistence for sort preferences.
+
+Fixes #456
+```
+
+## 10. CI/CD Pipeline
+
+### 10.1 GitHub Actions Workflow
+```yaml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install Dependencies
+      run: |
+        cd client && npm ci
+        cd ../server && npm ci
+        
+    - name: Build Client
+      run: |
+        cd client && npm run build
+        
+    - name: Run Tests
+      run: |
+        cd client && npm run test:unit
+        cd ../server && npm run test
+        
+    - name: Build Tauri
+      run: |
+        cd client && npm run tauri build
+        
+    - name: Deploy to Staging
+      if: github.ref == 'refs/heads/main'
+      run: |
+        scp -r client/dist deploy@server:/var/www/ssh-client
+        scp server/dist/* deploy@server:/opt/ssh-server
+```
